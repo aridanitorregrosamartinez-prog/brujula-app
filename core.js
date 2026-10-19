@@ -44,6 +44,11 @@ function merge(base,local,remote){
  }
  return {data:result,conflicts};
 }
+function taskChanges(before,after){
+ const labels={name:'Nombre',area:'Área',priority:'Prioridad',due:'Fecha',time:'Hora',note:'Notas',done:'Completada'};
+ const display=v=>v===true?'Sí':v===false?'No':String(v||'Sin dato');
+ return Object.entries(labels).filter(([k])=>!before||!equal(before[k],after[k])).map(([k,label])=>label+': '+(before?display(before[k])+' → ':'')+display(after[k])).join('\n');
+}
 function applyCommands(data,packet){
  if(packet?.format!=='brujula-task-changes-v1'||!Array.isArray(packet.actions)||!packet.actions.length||packet.actions.length>100)throw Error('Se espera un paquete brujula-task-changes-v1 de 1 a 100 acciones.');
  const next=clone(data),summary=[],touched=new Set();
@@ -52,11 +57,11 @@ function applyCommands(data,packet){
   touched.add(action.id);const at=next.tasks.findIndex(t=>t.id===action.id),prior=next.tasks[at];
   if(action.op==='create'){
    if(prior)throw Error('La tarea ya existe: '+action.id);
-   next.tasks.push({...action.task,id:action.id,done:false});summary.push('Crear: '+(action.task?.name||''));
+   next.tasks.push({...action.task,id:action.id,done:false});summary.push('Crear: '+(action.task?.name||'')+'\n'+taskChanges(null,next.tasks[next.tasks.length-1]));
   }else{
    if(!prior)throw Error('No existe la tarea: '+action.id);
    if(!action.before||!equal(prior,action.before))throw Error('La tarea ha cambiado. Exporta de nuevo antes de aplicar: '+prior.name);
-   next.tasks[at]=action.op==='complete'?{...prior,done:true}:{...prior,...action.task,id:action.id};summary.push((action.op==='complete'?'Completar: ':'Editar: ')+next.tasks[at].name);
+   next.tasks[at]=action.op==='complete'?{...prior,done:true}:{...prior,...action.task,id:action.id};summary.push((action.op==='complete'?'Completar: ':'Editar: ')+next.tasks[at].name+'\n'+taskChanges(prior,next.tasks[at]));
   }
  }
  return {data:validateData(next),summary};
